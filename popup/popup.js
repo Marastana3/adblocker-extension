@@ -40,10 +40,7 @@ async function initPopup() {
 replaceToggle.addEventListener('change', () => {
   const newVal = replaceToggle.checked;
   // This must be chrome.runtime.sendMessage, *not* chrome.tabs.sendMessage
-  chrome.runtime.sendMessage({
-    type: 'UPDATE_REPLACE_FLAG',
-    value: newVal
-  });
+  chrome.runtime.sendMessage({ type: 'UPDATE_REPLACE_FLAG', value: newVal })
 });
 
 

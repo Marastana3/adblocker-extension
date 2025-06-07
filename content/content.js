@@ -1,26 +1,11 @@
-// Listen for the replace-ads toggle update from the popup
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === 'UPDATE_REPLACE_FLAG') {
-    replaceGamblingAds = msg.value;
-    // Re-run your initial scan to apply the new behavior immediately
-    initialScan();
-  }
-});
+// content.js
 
 // ────────────────────────────────────────────────────────────────────────
 // 1) SETTINGS & PATTERNS
 // ────────────────────────────────────────────────────────────────────────
 
-// “Replace gambling ads” toggle
-let replaceGamblingAds = false;
-chrome.storage.local.get("replaceGamblingAds", data => {
-  replaceGamblingAds = !!data.replaceGamblingAds;
-});
-chrome.storage.onChanged.addListener(changes => {
-  if (changes.replaceGamblingAds) {
-    replaceGamblingAds = changes.replaceGamblingAds.newValue;
-  }
-});
+// “Replace gambling ads” toggle (will be loaded from storage)
+let replaceGamblingAds = true;
 
 // Ad-hiding selectors
 const hideSelectors = [
@@ -38,7 +23,7 @@ const hideSelectors = [
   'iframe[src*="googlesyndication."]',
   'script[src*="adservice"]',
   'script[src*="googlesyndication"]',
-    'iframe#websports-iframe',
+  'iframe#websports-iframe',
   'div.widget-text-widget#x-custom_html-2',
   '[id^="x-strawberry_sticky_posts_widget-"][data-template^="Puzzle"] img',
   '#x-strawberry_sticky_posts_widget-54 img'
@@ -70,7 +55,6 @@ const puzzleLogoRegex = /logo-puzzle-(bet365|unibet|888sport|pokerstars|stanleyb
 // 2) HELPERS
 // ────────────────────────────────────────────────────────────────────────
 
-// Replace a node with a random motivational quote
 function replaceNodeWithQuote(node) {
   const quote = motivationalQuotes[
     Math.floor(Math.random() * motivationalQuotes.length)
@@ -90,11 +74,10 @@ function replaceNodeWithQuote(node) {
   chrome.runtime.sendMessage({ type: 'GAMBLING_AD_REPLACED' });
 }
 
-// Handle hiding/removing ads & replacing gambling ads
 function handleNode(node) {
   if (!(node instanceof HTMLElement)) return;
 
-  // Hide general ads
+  // 1) Hide general ads
   for (const sel of hideSelectors) {
     if (node.matches(sel)) {
       node.style.display = 'none';
@@ -103,7 +86,7 @@ function handleNode(node) {
     }
   }
 
-  // Replace or hide gambling ads
+  // 2) Replace or hide gambling ads
   for (const sel of gamblingSelectors) {
     if (node.matches(sel)) {
       if (replaceGamblingAds) {
@@ -117,26 +100,31 @@ function handleNode(node) {
   }
 }
 
-// Scoped filename-only hide for sponsor logos
+// Sponsor-logo hide by filename
 function hideBySrc(img) {
   const widget = img.closest('[id^="x-strawberry_sticky_posts_widget"]');
   if (!widget) return false;
 
   const src = img.src || '';
   if (puzzleLogoRegex.test(src)) {
-    img.remove();
-    chrome.runtime.sendMessage({ type: 'SPONSOR_REPLACED' });
+    if (replaceGamblingAds) {
+      replaceNodeWithQuote(img);
+    } else {
+      img.remove();
+      chrome.runtime.sendMessage({ type: 'SPONSOR_REPLACED' });
+    }
     return true;
   }
   return false;
 }
 
 
+
 // ────────────────────────────────────────────────────────────────────────
 // 3) INITIAL SCAN & CSS INJECTION
 // ────────────────────────────────────────────────────────────────────────
 
-// Inject CSS to pre-hide general ads
+// Pre-hide via CSS for a flash-free experience
 const style = document.createElement('style');
 style.textContent = hideSelectors
   .map(sel => `${sel} { display: none !important; }`)
@@ -144,28 +132,55 @@ style.textContent = hideSelectors
 document.head.appendChild(style);
 
 function initialScan() {
-  document.querySelectorAll('img').forEach(img => {
-    hideBySrc(img);
-  });
-  const allAdSelectors = hideSelectors.concat(gamblingSelectors).join(', ');
-  document.querySelectorAll(allAdSelectors).forEach(node => handleNode(node));
+  // 1) Sponsor images:
+  document.querySelectorAll('img').forEach(img => hideBySrc(img));
+
+  // 2) Ads & gambling:
+  const allSelectors = hideSelectors.concat(gamblingSelectors).join(', ');
+  document.querySelectorAll(allSelectors).forEach(el => handleNode(el));
 }
-
-initialScan();
-
 
 // ────────────────────────────────────────────────────────────────────────
 // 4) MUTATION OBSERVER FOR DYNAMIC CONTENT
 // ────────────────────────────────────────────────────────────────────────
+
 const observer = new MutationObserver(mutations => {
   for (const m of mutations) {
     for (const node of m.addedNodes) {
-      if (node.tagName === 'IMG') hideBySrc(node);
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      if (node.tagName === 'IMG') {
+        hideBySrc(node);
+      }
       handleNode(node);
     }
   }
 });
 observer.observe(document.body, { childList: true, subtree: true });
 
- // DEBUG
-console.log("Content script running on", window.location.href);
+// ────────────────────────────────────────────────────────────────────────
+// 5) WIRE UP STORAGE + MESSAGING
+// ────────────────────────────────────────────────────────────────────────
+
+// 5A) Load the flag before doing initialScan()
+chrome.storage.local.get("replaceGamblingAds", data => {
+  replaceGamblingAds = !!data.replaceGamblingAds;
+  initialScan();
+});
+
+// 5B) Persist & react to changes from popup
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === 'UPDATE_REPLACE_FLAG') {
+    replaceGamblingAds = msg.value;
+
+    // Persist new value so on reload it'll stick
+    chrome.storage.local.set({ replaceGamblingAds });
+
+    // Re-run on the current DOM
+    initialScan();
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// DEBUG
+// ────────────────────────────────────────────────────────────────────────
+console.log("InspireBlock content script injected on", window.location.href);

@@ -1,6 +1,4 @@
-// background.js
-
-// In‐memory stats cache
+// In-memory stats cache
 const tabStats = {};
 
 function ensureStats(tabId) {
@@ -40,11 +38,13 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
       persistStats(tabId);
       return;
     }
+
     if (msg.type === 'GAMBLING_AD_REPLACED') {
       stats.gamblingReplaced++;
       persistStats(tabId);
       return;
     }
+
     if (msg.type === 'REQUEST_BLOCKED') {
       stats.requestsBlocked++;
       persistStats(tabId);
@@ -56,10 +56,13 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   if (!sender.tab) {
     // 1) Replace-ads toggle
     if (msg.type === 'UPDATE_REPLACE_FLAG') {
-      // Forward to the active tab
       chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-        if (tabs[0]?.id != null) {
-          chrome.tabs.sendMessage(tabs[0].id, msg);
+        const tabId = tabs[0]?.id;
+        if (tabId != null) {
+          // Forward the flag to the content script
+          chrome.tabs.sendMessage(tabId, msg);
+          // Reload so the new flag applies across the DOM
+          chrome.tabs.reload(tabId);
         }
       });
       return;
@@ -67,10 +70,10 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 
     // 2) Disable/enable on this domain (optional)
     if (msg.type === 'TOGGLE_DISABLE_DOMAIN') {
-      // Forward to active tab too, if you handle it in content.js
       chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-        if (tabs[0]?.id != null) {
-          chrome.tabs.sendMessage(tabs[0].id, msg);
+        const tabId = tabs[0]?.id;
+        if (tabId != null) {
+          chrome.tabs.sendMessage(tabId, msg);
         }
       });
       return;
