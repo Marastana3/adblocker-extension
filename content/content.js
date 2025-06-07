@@ -81,7 +81,7 @@ function replaceNodeWithQuote(node) {
   chrome.runtime.sendMessage({ type: 'GAMBLING_AD_REPLACED' });
 }
 
-// 2b) Handle hiding/removing ads & replacing gambling ads
+// Handle hiding/removing ads & replacing gambling ads
 function handleNode(node) {
   if (!(node instanceof HTMLElement)) return;
 
@@ -134,12 +134,10 @@ style.textContent = hideSelectors
   .join('\n');
 document.head.appendChild(style);
 
-// Initial pass
 function initialScan() {
   document.querySelectorAll('img').forEach(img => {
     hideBySrc(img);
   });
-
   const allAdSelectors = hideSelectors.concat(gamblingSelectors).join(', ');
   document.querySelectorAll(allAdSelectors).forEach(node => handleNode(node));
 }
@@ -150,17 +148,15 @@ initialScan();
 // ────────────────────────────────────────────────────────────────────────
 // 4) MUTATION OBSERVER FOR DYNAMIC CONTENT
 // ────────────────────────────────────────────────────────────────────────
-
 const observer = new MutationObserver(mutations => {
   for (const m of mutations) {
     for (const node of m.addedNodes) {
-      if (node.tagName === 'IMG') {
-        hideBySrc(node);
-      }
+      if (node.tagName === 'IMG') hideBySrc(node);
       handleNode(node);
     }
   }
 });
 observer.observe(document.body, { childList: true, subtree: true });
 
+ // DEBUG
 console.log("Content script running on", window.location.href);
