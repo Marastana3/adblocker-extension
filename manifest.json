@@ -8,7 +8,8 @@
     "declarativeNetRequest",
     "storage",
     "webNavigation",
-    "activeTab"
+    "activeTab",
+    "scripting"
   ],
 
   "host_permissions": [

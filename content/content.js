@@ -1,3 +1,12 @@
+// Listen for the replace-ads toggle update from the popup
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === 'UPDATE_REPLACE_FLAG') {
+    replaceGamblingAds = msg.value;
+    // Re-run your initial scan to apply the new behavior immediately
+    initialScan();
+  }
+});
+
 // ────────────────────────────────────────────────────────────────────────
 // 1) SETTINGS & PATTERNS
 // ────────────────────────────────────────────────────────────────────────
