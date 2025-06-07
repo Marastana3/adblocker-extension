@@ -1,8 +1,8 @@
-console.log("Content script running on", window.location.href);
+// ────────────────────────────────────────────────────────────────────────
+// 1) SETTINGS & PATTERNS
+// ────────────────────────────────────────────────────────────────────────
 
-// content/content.js
-
-// 1. Load the “replace gambling ads” flag from storage
+// “Replace gambling ads” toggle
 let replaceGamblingAds = false;
 chrome.storage.local.get("replaceGamblingAds", data => {
   replaceGamblingAds = !!data.replaceGamblingAds;
@@ -13,40 +13,38 @@ chrome.storage.onChanged.addListener(changes => {
   }
 });
 
-// 2. Define the selectors
+// Ad-hiding selectors
 const hideSelectors = [
-  // Classes that *start* or *end* with an ad token, not just contain “ad” anywhere:
-  '[class^="ad-"]',      // ad-banner, ad_container
-  '[class$="-ad"]',      // sidebar-ad, footer-ad
-  '[class*=" ad-"]',     // “top ad-banner”
-  '[class*="-ad "]',     // “sidebar-ad widget”
-
-  // IDs that start or end with “ad”
+  '[class^="ad-"]',
+  '[class$="-ad"]',
+  '[class*=" ad-"]',
+  '[class*="-ad "]',
   '[id^="ad-"]',
   '[id$="-ad"]',
-
-  // data attributes used by many ad frameworks
   '[data-ad-slot]',
   '[data-adunit]',
   '[data-ad]',
-
-  // Iframes loading from ad domains
-  'iframe[src*="ads."], iframe[src*="doubleclick."], iframe[src*="googlesyndication."]',
-
-  // Scripts from known ad servers
+  'iframe[src*="ads."]',
+  'iframe[src*="doubleclick."]',
+  'iframe[src*="googlesyndication."]',
   'script[src*="adservice"]',
-  'script[src*="googlesyndication"]'
+  'script[src*="googlesyndication"]',
+    'iframe#websports-iframe',
+  'div.widget-text-widget#x-custom_html-2',
+  '[id^="x-strawberry_sticky_posts_widget-"][data-template^="Puzzle"] img',
+  '#x-strawberry_sticky_posts_widget-54 img'
 ];
 
-
+// Gambling-ad selectors
 const gamblingSelectors = [
-  'iframe[src*="bet365"], iframe[src*="pokerstars"], iframe[src*="casino"],',
-  '[class*=" ad-gambling"]', 
-  '[data-ad-type="gambling"]',   
-  'iframe[src*="slots"],',     
+  'iframe[src*="bet365"]',
+  'iframe[src*="pokerstars"]',
+  'iframe[src*="casino"]',
+  '[class*="ad-gambling"]',
+  'iframe[src*="slots"]'
 ];
 
-// 3. Quotes array
+// Motivational quotes
 const motivationalQuotes = [
   "Believe you can and you're halfway there.",
   "Success is not final; failure is not fatal.",
@@ -55,7 +53,15 @@ const motivationalQuotes = [
   "Don’t watch the clock; do what it does. Keep going."
 ];
 
-// 4. Helper to replace a node with a random quote
+// Exact “puzzle-logo” regex for sponsor images
+const puzzleLogoRegex = /logo-puzzle-(bet365|unibet|888sport|pokerstars|stanleybet|superbet|betano)\.(?:webp|jpe?g|png)$/i;
+
+
+// ────────────────────────────────────────────────────────────────────────
+// 2) HELPERS
+// ────────────────────────────────────────────────────────────────────────
+
+// Replace a node with a random motivational quote
 function replaceNodeWithQuote(node) {
   const quote = motivationalQuotes[
     Math.floor(Math.random() * motivationalQuotes.length)
@@ -75,52 +81,86 @@ function replaceNodeWithQuote(node) {
   chrome.runtime.sendMessage({ type: 'GAMBLING_AD_REPLACED' });
 }
 
-// 5. Scan & handle a single node
+// 2b) Handle hiding/removing ads & replacing gambling ads
 function handleNode(node) {
   if (!(node instanceof HTMLElement)) return;
 
-  // General ads: hide
-  if (hideSelectors.some(sel => node.matches(sel))) {
-    node.style.display = 'none';
-    chrome.runtime.sendMessage({ type: 'ELEMENT_HIDDEN' });
-    return;
+  // Hide general ads
+  for (const sel of hideSelectors) {
+    if (node.matches(sel)) {
+      node.style.display = 'none';
+      chrome.runtime.sendMessage({ type: 'ELEMENT_HIDDEN' });
+      return;
+    }
   }
 
-  // Gambling ads: hide or replace
-  if (gamblingSelectors.some(sel => node.matches(sel))) {
-    if (replaceGamblingAds) {
-      replaceNodeWithQuote(node);
-    } else {
-      node.remove();
-      chrome.runtime.sendMessage({ type: 'ELEMENT_HIDDEN' });
+  // Replace or hide gambling ads
+  for (const sel of gamblingSelectors) {
+    if (node.matches(sel)) {
+      if (replaceGamblingAds) {
+        replaceNodeWithQuote(node);
+      } else {
+        node.remove();
+        chrome.runtime.sendMessage({ type: 'ELEMENT_HIDDEN' });
+      }
+      return;
     }
   }
 }
 
-// 6. Initial page‐load pass
-function initialScan() {
-  hideSelectors.concat(gamblingSelectors).forEach(sel => {
-    document.querySelectorAll(sel).forEach(node => handleNode(node));
-  });
+// Scoped filename-only hide for sponsor logos
+function hideBySrc(img) {
+  const widget = img.closest('[id^="x-strawberry_sticky_posts_widget"]');
+  if (!widget) return false;
+
+  const src = img.src || '';
+  if (puzzleLogoRegex.test(src)) {
+    img.remove();
+    chrome.runtime.sendMessage({ type: 'SPONSOR_REPLACED' });
+    return true;
+  }
+  return false;
 }
 
-// 7. Inject CSS to pre‐hide general ads (optional but faster)
+
+// ────────────────────────────────────────────────────────────────────────
+// 3) INITIAL SCAN & CSS INJECTION
+// ────────────────────────────────────────────────────────────────────────
+
+// Inject CSS to pre-hide general ads
 const style = document.createElement('style');
 style.textContent = hideSelectors
   .map(sel => `${sel} { display: none !important; }`)
   .join('\n');
 document.head.appendChild(style);
 
-// 8. Watch for dynamically injected ads
-const observer = new MutationObserver(muts => {
-  muts.forEach(m => {
-    m.addedNodes.forEach(handleNode);
+// Initial pass
+function initialScan() {
+  document.querySelectorAll('img').forEach(img => {
+    hideBySrc(img);
   });
+
+  const allAdSelectors = hideSelectors.concat(gamblingSelectors).join(', ');
+  document.querySelectorAll(allAdSelectors).forEach(node => handleNode(node));
+}
+
+initialScan();
+
+
+// ────────────────────────────────────────────────────────────────────────
+// 4) MUTATION OBSERVER FOR DYNAMIC CONTENT
+// ────────────────────────────────────────────────────────────────────────
+
+const observer = new MutationObserver(mutations => {
+  for (const m of mutations) {
+    for (const node of m.addedNodes) {
+      if (node.tagName === 'IMG') {
+        hideBySrc(node);
+      }
+      handleNode(node);
+    }
+  }
 });
 observer.observe(document.body, { childList: true, subtree: true });
 
-// 9. Kick off the initial scan
-initialScan();
-
-// 10. Log for debugging
 console.log("Content script running on", window.location.href);
