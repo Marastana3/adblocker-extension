@@ -1,7 +1,7 @@
 /* From Uiverse.io by ariba_9087 */ 
 body {
-  width: 320px;    /* total popup width */
-  height: 320px;   /* total popup height */
+  width: 320px;    
+  height: 320px;  
   margin: 0;
   padding: 0;
   border-radius: 12px;
@@ -90,7 +90,6 @@ body {
 
 body {
   font-family: Arial, sans-serif;
-  /* // remove min-width if this conflicts with full-screen design */
   min-width: 200px;
   padding: 10px;
 }
