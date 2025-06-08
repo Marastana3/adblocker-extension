@@ -88,6 +88,66 @@ body {
   text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
 
+/* — the switch container — */
+.switch {
+  font-size: 17px;
+  position: relative;
+  display: inline-block;
+  width: 2.6em;
+  height: 1.5em;
+  vertical-align: middle;
+}
+
+/* hide the native checkbox */
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* the background “slider” track */
+.slider {
+  position: absolute;
+  inset: 0;
+  background: #d4acfb;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* the round knob */
+.slider:before {
+  content: "";
+  position: absolute;
+  height: 1.05em;
+  width: 1.05em;
+  left: 0.2em;
+  bottom: 0.2em;
+  background: white;
+  border-radius: 50px;
+  box-shadow: 0 0px 20px rgba(0,0,0,0.4);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* checked ⁠— change track color */
+.switch input:checked + .slider {
+  background: #b84fce;
+}
+
+/* focus ring */
+.switch input:focus + .slider {
+  box-shadow: 0 0 1px #b84fce;
+}
+
+/* move & grow knob when checked */
+.switch input:checked + .slider:before {
+  transform: translateX(1.1em);
+  width: 1.4em;
+  height: 1.4em;
+  bottom: 0;
+}
+
+
 body {
   font-family: Arial, sans-serif;
   min-width: 200px;
