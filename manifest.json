@@ -9,6 +9,7 @@
     "storage",
     "webNavigation",
     "activeTab",
+    "tabs",
     "scripting"
   ],
 
@@ -25,6 +26,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
+      "run_at": "document_idle",
       "js": [
         "lib/tesseract.min.js",
         "content/content.js"]
